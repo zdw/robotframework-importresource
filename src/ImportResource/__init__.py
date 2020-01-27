@@ -51,9 +51,9 @@ class ImportResource(DynamicCore):
                             pass
                         self.resources.append(resource_file)
                 else:
-                    logger.warn(f"Module {resource} did't contain any resource files")
+                    logger.warn("Module %s didn't contain any resource files" % resource)
             else:
-                logger.warn(f"Module {resource} doesn't contain resource directory: {self.RESOURCE_PATH}")
+                logger.warn("Module %s doesn't contain resource directory: %s" % (resource, self.RESOURCE_PATH))
 
     @keyword
     def external_resources(self):
@@ -62,10 +62,18 @@ class ImportResource(DynamicCore):
 
     def _find_modules(self):
         def is_package(mod):
-            return mod.ispkg
+            try:
+                # for python >3.6, is a ModuleInfo: https://docs.python.org/3.7/library/pkgutil.html#pkgutil.ModuleInfo
+                return mod.ispkg
+            except AttributeError:
+                # for python 3.5 and before, is sequence: https://docs.python.org/3.5/library/pkgutil.html#pkgutil.iter_modules
+                return mod[2]
 
         def mod_path(mod):
-            return Path(mod.module_finder.path) / Path(mod.name) / Path(self.RESOURCE_PATH)
+            try:
+                return Path(mod.module_finder.path) / Path(mod.name) / Path(self.RESOURCE_PATH)
+            except AttributeError:
+                return Path(mod[0].path) / Path(mod[1]) / Path(self.RESOURCE_PATH)
 
         def resource_exists(mod):
             return mod[1].is_dir()
@@ -74,7 +82,10 @@ class ImportResource(DynamicCore):
             return ChainMap(*mods).items()
 
         def mod_to_dict(mod):
-            return {mod.name: mod_path(mod)}
+            try:
+                return {mod.name: mod_path(mod)}
+            except AttributeError:
+                return {mod[1]: mod_path(mod)}
 
         return dict(
             filter(
